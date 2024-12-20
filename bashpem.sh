@@ -22,18 +22,27 @@ fi
 # Create the new user
 useradd -m -s /bin/bash "$username" || error_exit "Failed to create user '$username'!"
 
-# Generate SSH key pair
+# Define the current directory and file paths
+current_dir=$(pwd)
+pem_file_path="$current_dir/${username}_key.pem"
+pub_file_path="$current_dir/${username}_key.pub"
+
+# Generate SSH key pair and save the private key as a .pem file
+ssh-keygen -t rsa -b 2048 -f "${current_dir}/${username}_key" -N "" || error_exit "Failed to generate SSH key pair!"
+mv "${current_dir}/${username}_key" "$pem_file_path"
+mv "${current_dir}/${username}_key.pub" "$pub_file_path"
+
+# Adjust permissions for the .pem file
+chmod 600 "$pem_file_path" || error_exit "Failed to set permissions for .pem file!"
+
+# Set up the user's SSH directory
 ssh_dir="/home/$username/.ssh"
 mkdir -p "$ssh_dir" || error_exit "Failed to create SSH directory!"
-ssh-keygen -t rsa -b 2048 -f "$ssh_dir/id_rsa" -N "" || error_exit "Failed to generate SSH key pair!"
-
-# Set appropriate permissions for the SSH directory and files
 chmod 700 "$ssh_dir"
-chmod 600 "$ssh_dir/id_rsa"
-chmod 644 "$ssh_dir/id_rsa.pub"
 
-# Move public key to authorized_keys
-mv "$ssh_dir/id_rsa.pub" "$ssh_dir/authorized_keys" || error_exit "Failed to configure authorized_keys!"
+# Move the public key to the authorized_keys file
+cp "$pub_file_path" "$ssh_dir/authorized_keys" || error_exit "Failed to configure authorized_keys!"
+chmod 600 "$ssh_dir/authorized_keys"
 chown -R "$username:$username" "$ssh_dir"
 
 # Add the new user to the sudo group
@@ -41,10 +50,10 @@ usermod -aG sudo "$username" || error_exit "Failed to add user '$username' to su
 
 # Print success message and SSH login instructions
 echo "User '$username' has been created and added to the sudo group."
-echo "SSH private key for the user:"
-cat "$ssh_dir/id_rsa"
-echo
-echo "Copy the above private key to the client machine to access the server using the username '$username'."
+echo "SSH key files have been created in the current directory:"
+echo "Private Key (.pem): $pem_file_path"
+echo "Public Key: $pub_file_path"
+echo "Copy the private key (.pem) to the client machine for SSH access."
 
 # Success
 exit 0
